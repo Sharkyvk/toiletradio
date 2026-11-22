@@ -143,11 +143,11 @@ uint32_t lastPresence = 0;
 bool statusDirty = true;
 
 void setDefaultStations() {
-  stations[0] = { "NPO Radio 2",  "https://icecast.omroep.nl/radio2-bb-mp3" };
-  stations[1] = { "Sky Radio",    "https://playerservices.streamtheworld.com/api/livestream-redirect/SKYRADIO.mp3" };
-  stations[2] = { "Qmusic",       "https://stream.qmusic.nl/qmusic/mp3" };
-  stations[3] = { "100% NL",      "https://stream.100p.nl/100pctnl.mp3" };
-  stations[4] = { "NPO Klassiek", "https://icecast.omroep.nl/radio4-bb-mp3" };
+  stations[0] = { "Swiss Jazz",      "http://stream.srg-ssr.ch/srgssr/rsj/mp3/128" };
+  stations[1] = { "Swiss Classic",   "http://stream.srg-ssr.ch/srgssr/rsc_de/mp3/128" };
+  stations[2] = { "Groove Salad",    "https://ice5.somafm.com/groovesalad-128-mp3" };
+  stations[3] = { "Secret Agent",    "https://ice5.somafm.com/secretagent-128-mp3" };
+  stations[4] = { "Paradise Mellow", "http://stream.radioparadise.com/mellow-128" };
 }
 
 void loadSettings() {
