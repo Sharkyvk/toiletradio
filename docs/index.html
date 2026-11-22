@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Toiletradio – beheer</title>
+<style>
+  body{font-family:system-ui,sans-serif;background:#111317;color:#e8e6e1;margin:0 auto;padding:16px;max-width:520px}
+  h1{font-weight:300;letter-spacing:.25em;color:#c8a96a;font-size:1.4em;margin:8px 0 4px}
+  .sub{color:#a9a59c;font-size:.85em;margin-bottom:12px}
+  h3{font-weight:400;color:#c8a96a;margin:0 0 6px}
+  .card{background:#1e2127;border-radius:14px;padding:14px;margin:12px 0}
+  label{display:block;margin:10px 0 4px;color:#a9a59c;font-size:.88em}
+  input,select{width:100%;box-sizing:border-box;padding:9px;border-radius:8px;border:1px solid #363a42;background:#15171b;color:#e8e6e1;font-size:1em}
+  input[type=checkbox]{width:auto}
+  button{padding:10px 16px;border:0;border-radius:8px;background:#c8a96a;color:#111317;font-weight:600;font-size:1em;margin:6px 6px 0 0}
+  button.g{background:#363a42;color:#e8e6e1}
+  button:disabled{opacity:.4}
+  .row{display:flex;gap:10px}.row>div{flex:1}
+  #st{line-height:1.7}
+  .hide{display:none}
+  .msg{color:#c8a96a;font-size:.9em;min-height:1.2em;margin-top:8px}
+</style>
+</head>
+<body>
+<h1>TOILETRADIO</h1>
+<div class="sub">Beheer via Bluetooth – alleen voor de beheerder</div>
+
+<div class="card" id="connCard">
+  <button id="btnConn" onclick="connect()">Verbinden met radio</button>
+  <div class="msg" id="msg">Sta in de buurt van de radio. Bij de eerste keer vraagt je telefoon om de pincode.</div>
+</div>
+
+<div id="app" class="hide">
+  <div class="card" id="st">–</div>
+
+  <div class="card">
+    <button onclick="cmd('play')">▶ Nu afspelen</button>
+    <button class="g" onclick="cmd('stop')">■ Stop</button>
+    <button class="g" id="mb" onclick="cmd('mute')">🔇 Mute</button>
+    <label>Zender</label><select id="station" onchange="saveConfig()"></select>
+    <label>Volume <span id="vv"></span></label>
+    <input type="range" id="volume" min="0" max="21" oninput="vv.textContent=this.value" onchange="saveConfig()">
+  </div>
+
+  <div class="card"><h3>Automatisch</h3>
+    <label><input type="checkbox" id="enabled"> Automatisch aanzetten actief</label>
+    <label>Aan op</label>
+    <select id="mode">
+      <option value="0">Licht aan</option>
+      <option value="1">Aanwezigheid (radar)</option>
+      <option value="2">Licht aan + aanwezigheid</option>
+    </select>
+    <label>Uit na zoveel seconden zonder aanwezigheid</label><input type="number" id="offDelay" min="5" max="3600">
+    <label>Fade-in / fade-uit (ms)</label><input type="number" id="fadeMs" min="0" max="15000" step="250">
+    <div class="row">
+      <div><label>Stil vanaf</label><input type="time" id="qs"></div>
+      <div><label>Stil tot</label><input type="time" id="qe"></div>
+    </div>
+    <h3 style="margin-top:16px">Muurpaneel</h3>
+    <div class="row">
+      <div><label>Helderheid dag</label><input type="number" id="bri" min="5" max="255"></div>
+      <div><label>Helderheid nacht</label><input type="number" id="briN" min="0" max="255"></div>
+    </div>
+    <label>Scherm aan na aanraking (s)</label><input type="number" id="scrT" min="5" max="600">
+    <button onclick="saveConfig()">Instellingen opslaan</button>
+  </div>
+
+  <div class="card"><h3>Zenders</h3>
+    <div id="stations"></div>
+    <button onclick="saveStations()">Zenders opslaan</button>
+  </div>
+
+  <div class="card"><h3>Wifi</h3>
+    <label>Netwerknaam (SSID)</label><input id="ssid" autocomplete="off">
+    <label>Wachtwoord</label><input id="wpass" type="password" autocomplete="off">
+    <button onclick="saveWifi()">Wifi instellen</button>
+  </div>
+
+  <div class="card"><h3>Beveiliging</h3>
+    <label>Nieuwe Bluetooth-pincode (6 cijfers)</label><input id="pin" inputmode="numeric" maxlength="6">
+    <button onclick="savePin()">Pincode wijzigen</button>
+    <label>Nieuw wachtwoord wifi-dashboard (min. 4 tekens)</label><input id="webpass" type="password">
+    <button onclick="saveWebpass()">Wachtwoord wijzigen</button>
+    <div style="margin-top:12px">
+      <button class="g" onclick="unpair()">Alle gekoppelde telefoons vergeten</button>
+      <button class="g" onclick="cmd('restart')">Radio herstarten</button>
+    </div>
+  </div>
+  <div class="msg" id="msg2"></div>
+</div>
+
+<script>
+const BASE = '-5c3b-4b8e-9a51-2f6d0c7a9b01';
+const SVC = '7e1a0001' + BASE;
+const UUID = {
+  status: '7e1a0002' + BASE, config: '7e1a0003' + BASE,
+  cmd: '7e1a0004' + BASE,    wifi: '7e1a0005' + BASE,
+  st: ['7e1a0006','7e1a0007','7e1a0008','7e1a0009','7e1a000a'].map(x => x + BASE)
+};
+const $ = id => document.getElementById(id);
+const enc = s => new TextEncoder().encode(s);
+const dec = v => new TextDecoder().decode(v);
+const hm = m => String(Math.floor(m/60)).padStart(2,'0') + ':' + String(m%60).padStart(2,'0');
+const mins = v => { const p = v.split(':'); return (+p[0])*60 + (+p[1]); };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+let dev = null, ch = {}, names = [];
+let busy = Promise.resolve();
+// Bluetooth staat maar één handeling tegelijk toe: alles achter elkaar
+const q = fn => (busy = busy.then(fn, fn));
+
+function say(t, id = 'msg2') { $(id).textContent = t; }
+
+async function connect() {
+  if (!navigator.bluetooth) {
+    say('Deze browser kan geen Bluetooth. Android: gebruik Chrome. iPhone: gebruik de app Bluefy.', 'msg');
+    return;
+  }
+  try {
+    say('Zoeken…', 'msg');
+    dev = await navigator.bluetooth.requestDevice({ filters: [{ services: [SVC] }] });
+    dev.addEventListener('gattserverdisconnected', onDisconnect);
+    const srv = await dev.gatt.connect();
+    const svc = await srv.getPrimaryService(SVC);
+    ch.status = await svc.getCharacteristic(UUID.status);
+    ch.config = await svc.getCharacteristic(UUID.config);
+    ch.cmd    = await svc.getCharacteristic(UUID.cmd);
+    ch.wifi   = await svc.getCharacteristic(UUID.wifi);
+    ch.st = [];
+    for (const u of UUID.st) ch.st.push(await svc.getCharacteristic(u));
+    say('Verbonden – gegevens laden (koppel met de pincode als daarom gevraagd wordt)…', 'msg');
+    await readAll();
+    await ch.status.startNotifications();
+    ch.status.addEventListener('characteristicvaluechanged', e => showStatus(JSON.parse(dec(e.target.value))));
+    $('app').classList.remove('hide');
+    $('btnConn').textContent = 'Verbonden ✓';
+    $('btnConn').disabled = true;
+    say('Verbonden met ' + (dev.name || 'Toiletradio'), 'msg');
+  } catch (e) {
+    say('Verbinden mislukt: ' + e.message, 'msg');
+  }
+}
+
+function onDisconnect() {
+  $('btnConn').textContent = 'Opnieuw verbinden';
+  $('btnConn').disabled = false;
+  say('Verbinding verbroken.', 'msg');
+}
+
+async function readJson(c) { return JSON.parse(dec(await c.readValue())); }
+async function writeJson(c, obj) { await c.writeValueWithResponse(enc(JSON.stringify(obj))); }
+async function writeText(c, t) { await c.writeValueWithResponse(enc(t)); }
+
+async function readAll() {
+  const stList = [];
+  for (const c of ch.st) stList.push(await readJson(c));
+  names = stList.map(s => s.n);
+  $('stations').innerHTML = stList.map((s, i) =>
+    `<label>Zender ${i+1}</label><input id="n${i}" maxlength="18" value="${esc(s.n)}">` +
+    `<input id="u${i}" value="${esc(s.u)}" placeholder="https://stream-url" style="margin-top:6px">`).join('');
+  $('station').innerHTML = names.map((n, i) => `<option value="${i}">${esc(n)}</option>`).join('');
+
+  const c = await readJson(ch.config);
+  $('station').value = c.station; $('volume').value = c.volume; $('vv').textContent = c.volume;
+  $('mode').value = c.mode; $('offDelay').value = c.offDelay; $('fadeMs').value = c.fadeMs;
+  $('qs').value = hm(c.qs); $('qe').value = hm(c.qe); $('enabled').checked = c.enabled;
+  $('bri').value = c.bri; $('briN').value = c.briN; $('scrT').value = c.scrT;
+
+  showStatus(await readJson(ch.status));
+}
+
+function showStatus(s) {
+  $('mb').textContent = s.m ? '🔊 Geluid aan' : '🔇 Mute';
+  const panel = s.pa < 0 ? 'nog niet gezien' : (s.pa < 10 ? 'verbonden' : 'laatst ' + s.pa + ' s geleden');
+  $('st').innerHTML =
+    `<b>${esc(s.s)}${s.m ? ' (gedempt)' : ''}</b> · ${esc(names[s.st] || '')}<br>` +
+    `Licht: ${s.l ? 'aan' : 'uit'} · Aanwezig: ${s.p ? 'ja' : 'nee'}<br>` +
+    `Tijd: ${s.t}${s.q ? ' · stille uren' : ''}<br>` +
+    `Wifi: ${s.w ? esc(s.ssid) + ' (' + s.r + ' dBm) · ' + s.ip : 'niet verbonden'}<br>` +
+    `Muurpaneel: ${panel}`;
+}
+
+function saveConfig() {
+  q(async () => {
+    try {
+      await writeJson(ch.config, {
+        station: +$('station').value, volume: +$('volume').value, mode: +$('mode').value,
+        offDelay: +$('offDelay').value, fadeMs: +$('fadeMs').value,
+        qs: mins($('qs').value), qe: mins($('qe').value), enabled: $('enabled').checked,
+        bri: +$('bri').value, briN: +$('briN').value, scrT: +$('scrT').value
+      });
+      say('Instellingen opgeslagen.');
+    } catch (e) { say('Opslaan mislukt: ' + e.message); }
+  });
+}
+
+function saveStations() {
+  q(async () => {
+    try {
+      for (let i = 0; i < 5; i++) await writeJson(ch.st[i], { n: $('n'+i).value, u: $('u'+i).value });
+      await readAll();
+      say('Zenders opgeslagen.');
+    } catch (e) { say('Opslaan mislukt: ' + e.message); }
+  });
+}
+
+function saveWifi() {
+  if (!$('ssid').value) { say('Vul een netwerknaam in.'); return; }
+  q(async () => {
+    try {
+      await writeJson(ch.wifi, { ssid: $('ssid').value, pass: $('wpass').value });
+      $('wpass').value = '';
+      say('Wifi-gegevens verstuurd. De radio maakt nu verbinding; kijk zo bij de status.');
+    } catch (e) { say('Versturen mislukt: ' + e.message); }
+  });
+}
+
+function savePin() {
+  const p = $('pin').value.trim();
+  if (!/^[1-9][0-9]{5}$/.test(p)) { say('De pincode moet 6 cijfers zijn en mag niet met 0 beginnen.'); return; }
+  if (!confirm('Pincode wijzigen? Daarna moet je de radio op je telefoon "vergeten" en opnieuw koppelen.')) return;
+  q(async () => {
+    try { await writeText(ch.cmd, 'pin:' + p); $('pin').value = ''; say('Pincode gewijzigd. Koppel opnieuw met de nieuwe code.'); }
+    catch (e) { say('Wijzigen mislukt: ' + e.message); }
+  });
+}
+
+function saveWebpass() {
+  const p = $('webpass').value;
+  if (p.length < 4) { say('Minimaal 4 tekens.'); return; }
+  q(async () => {
+    try { await writeText(ch.cmd, 'webpass:' + p); $('webpass').value = ''; say('Wachtwoord van het wifi-dashboard gewijzigd.'); }
+    catch (e) { say('Wijzigen mislukt: ' + e.message); }
+  });
+}
+
+function unpair() {
+  if (!confirm('Alle gekoppelde telefoons vergeten? Ook deze telefoon moet daarna opnieuw koppelen.')) return;
+  cmd('unpair');
+}
+
+function cmd(c) {
+  q(async () => {
+    try { await writeText(ch.cmd, c); }
+    catch (e) { say('Opdracht mislukt: ' + e.message); }
+  });
+}
+</script>
+</body>
+</html>
