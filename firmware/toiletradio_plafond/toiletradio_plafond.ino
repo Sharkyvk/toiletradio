@@ -32,8 +32,9 @@
    GPIO6   -> MAX98357A DIN    (idem)
    GPIO7   -> MAX98357A SD     (idem; HIGH = aan)
    GPIO15  <- LD2410C OUT      (HIGH = iemand aanwezig)
-   GPIO16  <- optocoupler-module uitgang (LOW = lamp aan), ingang op de
-              schakeldraad van de lamp + nul
+   GPIO16  <- lichtdetectie: Hi-Link HLK-PM01 op schakeldraad + nul,
+              5V-uitgang via deler 10k/22k naar GPIO16 (HIGH = lamp aan),
+              min van de PM01 aan GND van de ESP32
    5V/GND  -> IRM-10-5 voeding (vaste fase + nul via zekering)
    Speakers: 8 ohm per versterker
 
@@ -213,9 +214,8 @@ bool inQuiet() {
   return (m >= cfg.qs && m < cfg.qe);
 }
 
-volatile uint32_t lastLightPulse = 0;
-void IRAM_ATTR onLightPulse() { lastLightPulse = millis(); }
-bool lightOn() { return digitalRead(PIN_LIGHT) == LOW || (millis() - lastLightPulse < 150); }
+// Lamp aan = de tweede HLK-PM01 op de schakeldraad geeft 5V -> via deler ~3,4V = HIGH
+bool lightOn() { return digitalRead(PIN_LIGHT) == HIGH; }
 
 bool presenceRecent() { return lastPresence && (millis() - lastPresence < cfg.offDelay * 1000UL); }
 
@@ -791,8 +791,7 @@ void setup() {
   Serial.begin(115200);
   pinMode(PIN_AMP_SD, OUTPUT); digitalWrite(PIN_AMP_SD, LOW);
   pinMode(PIN_RADAR, INPUT_PULLDOWN);
-  pinMode(PIN_LIGHT, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(PIN_LIGHT), onLightPulse, FALLING);
+  pinMode(PIN_LIGHT, INPUT_PULLDOWN);
 
   loadSettings();
 
