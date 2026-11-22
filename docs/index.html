@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Toiletradio – beheer</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#111317">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Toiletradio">
 <style>
   body{font-family:system-ui,sans-serif;background:#111317;color:#e8e6e1;margin:0 auto;padding:16px;max-width:520px}
   h1{font-weight:300;letter-spacing:.25em;color:#c8a96a;font-size:1.4em;margin:8px 0 4px}
@@ -25,9 +31,11 @@
 <body>
 <h1>TOILETRADIO</h1>
 <div class="sub">Beheer via Bluetooth – alleen voor de beheerder</div>
+<div class="card hide" id="demoBar" style="border:1px solid #c8a96a">DEMO-MODUS – er is geen echte radio verbonden. Alles wat je instelt wordt alleen in deze app nagebootst.</div>
 
 <div class="card" id="connCard">
   <button id="btnConn" onclick="connect()">Verbinden met radio</button>
+  <button class="g" id="btnDemo" onclick="demo()">Demo (zonder radio)</button>
   <div class="msg" id="msg">Sta in de buurt van de radio. Bij de eerste keer vraagt je telefoon om de pincode.</div>
 </div>
 
@@ -130,16 +138,64 @@ async function connect() {
     ch.st = [];
     for (const u of UUID.st) ch.st.push(await svc.getCharacteristic(u));
     say('Verbonden – gegevens laden (koppel met de pincode als daarom gevraagd wordt)…', 'msg');
-    await readAll();
-    await ch.status.startNotifications();
-    ch.status.addEventListener('characteristicvaluechanged', e => showStatus(JSON.parse(dec(e.target.value))));
-    $('app').classList.remove('hide');
-    $('btnConn').textContent = 'Verbonden ✓';
-    $('btnConn').disabled = true;
-    say('Verbonden met ' + (dev.name || 'Toiletradio'), 'msg');
+    await startApp('Verbonden met ' + (dev.name || 'Toiletradio'));
   } catch (e) {
     say('Verbinden mislukt: ' + e.message, 'msg');
   }
+}
+
+async function startApp(text) {
+  await readAll();
+  await ch.status.startNotifications();
+  ch.status.addEventListener('characteristicvaluechanged', e => showStatus(JSON.parse(dec(e.target.value))));
+  $('app').classList.remove('hide');
+  $('btnConn').textContent = 'Verbonden ✓';
+  $('btnConn').disabled = true;
+  $('btnDemo').disabled = true;
+  say(text, 'msg');
+}
+
+// ---------- Demo-modus: nagebootste radio om de app te testen ----------
+function demo() {
+  const D = {
+    config: { station: 0, volume: 8, mode: 2, offDelay: 60, fadeMs: 3000, qs: 1410, qe: 360, enabled: true, bri: 180, briN: 25, scrT: 30 },
+    st: [
+      { n: 'NPO Radio 2',  u: 'https://icecast.omroep.nl/radio2-bb-mp3' },
+      { n: 'Sky Radio',    u: 'https://playerservices.streamtheworld.com/api/livestream-redirect/SKYRADIO.mp3' },
+      { n: 'Qmusic',       u: 'https://stream.qmusic.nl/qmusic/mp3' },
+      { n: '100% NL',      u: 'https://stream.100p.nl/100pctnl.mp3' },
+      { n: 'NPO Klassiek', u: 'https://icecast.omroep.nl/radio4-bb-mp3' }
+    ],
+    s: 'uit', m: false, ssid: 'Thuisnetwerk', pa: 2
+  };
+  const now = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+  const quiet = () => { const m = now(), a = D.config.qs, b = D.config.qe; return a === b ? false : a > b ? (m >= a || m < b) : (m >= a && m < b); };
+  const status = () => JSON.stringify({ s: D.s, st: D.config.station, m: D.m, l: D.s !== 'uit', p: D.s !== 'uit', q: quiet(),
+    t: new Date().toTimeString().slice(0, 5), w: true, ssid: D.ssid, ip: '192.168.1.42', r: -58, pa: D.pa });
+  const view = txt => new DataView(enc(txt).buffer);
+  const fake = (get, set) => {
+    const ls = [];
+    return {
+      readValue: async () => view(get()),
+      writeValueWithResponse: async v => { await new Promise(r => setTimeout(r, 150)); set(dec(v)); },
+      startNotifications: async () => setInterval(() => ls.forEach(f => f({ target: { value: view(get()) } })), 1000),
+      addEventListener: (t, f) => ls.push(f)
+    };
+  };
+  ch = {
+    status: fake(status, () => {}),
+    config: fake(() => JSON.stringify(D.config), t => Object.assign(D.config, JSON.parse(t))),
+    cmd: fake(() => '', t => {
+      if (t === 'play') D.s = 'speelt';
+      else if (t === 'stop') { D.s = 'uit'; D.m = false; }
+      else if (t === 'mute') { if (D.s !== 'uit') D.m = !D.m; }
+      else if (t === 'restart') { D.s = 'uit'; D.m = false; }
+    }),
+    wifi: fake(() => '', t => { D.ssid = JSON.parse(t).ssid; }),
+    st: D.st.map((_, i) => fake(() => JSON.stringify(D.st[i]), t => { D.st[i] = JSON.parse(t); }))
+  };
+  $('demoBar').classList.remove('hide');
+  startApp('Demo-modus actief');
 }
 
 function onDisconnect() {
@@ -246,6 +302,9 @@ function cmd(c) {
     catch (e) { say('Opdracht mislukt: ' + e.message); }
   });
 }
+
+// App installeerbaar maken en offline laten werken
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 </body>
 </html>
