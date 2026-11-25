@@ -143,11 +143,11 @@ uint32_t lastPresence = 0;
 bool statusDirty = true;
 
 void setDefaultStations() {
-  stations[0] = { "Groove Salad",    "https://ice5.somafm.com/groovesalad-128-mp3" };
-  stations[1] = { "Lush",            "https://ice5.somafm.com/lush-128-mp3" };
-  stations[2] = { "Poolside",        "https://stream-mixtape-geo.ntslive.net/mixtape4?client=direct" };
-  stations[3] = { "Illinois Lounge", "https://ice5.somafm.com/illstreet-128-mp3" };
-  stations[4] = { "Swiss Pop",       "http://stream.srg-ssr.ch/srgssr/rsp/mp3/128" };
+  stations[0] = { "Poolside",        "https://stream-mixtape-geo.ntslive.net/mixtape4?client=direct" };
+  stations[1] = { "Low Key",         "https://stream-mixtape-geo.ntslive.net/mixtape2?client=direct" };
+  stations[2] = { "FIP Groove",      "https://icecast.radiofrance.fr/fipgroove-midfi.mp3?id=radiofrance" };
+  stations[3] = { "FIP Monde",       "https://icecast.radiofrance.fr/fipworld-midfi.mp3?id=radiofrance" };
+  stations[4] = { "FIP Electro",     "https://icecast.radiofrance.fr/fipelectro-midfi.mp3?id=radiofrance" };
 }
 
 void loadSettings() {
