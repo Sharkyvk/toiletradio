@@ -143,11 +143,11 @@ uint32_t lastPresence = 0;
 bool statusDirty = true;
 
 void setDefaultStations() {
-  stations[0] = { "Swiss Jazz",      "http://stream.srg-ssr.ch/srgssr/rsj/mp3/128" };
-  stations[1] = { "Swiss Classic",   "http://stream.srg-ssr.ch/srgssr/rsc_de/mp3/128" };
-  stations[2] = { "Groove Salad",    "https://ice5.somafm.com/groovesalad-128-mp3" };
-  stations[3] = { "Secret Agent",    "https://ice5.somafm.com/secretagent-128-mp3" };
-  stations[4] = { "Paradise Mellow", "http://stream.radioparadise.com/mellow-128" };
+  stations[0] = { "Groove Salad",    "https://ice5.somafm.com/groovesalad-128-mp3" };
+  stations[1] = { "Lush",            "https://ice5.somafm.com/lush-128-mp3" };
+  stations[2] = { "Poolside",        "https://stream-mixtape-geo.ntslive.net/mixtape4?client=direct" };
+  stations[3] = { "Illinois Lounge", "https://ice5.somafm.com/illstreet-128-mp3" };
+  stations[4] = { "Swiss Pop",       "http://stream.srg-ssr.ch/srgssr/rsp/mp3/128" };
 }
 
 void loadSettings() {
